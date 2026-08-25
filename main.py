@@ -22,7 +22,6 @@ async def handle_announcement(update: Update, context: ContextTypes.DEFAULT_TYPE
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     
-    # التأكد من أن الرسالة من مجموعة الإدارة ومن أحد الأصدقاء المصرح لهم
     if chat_id != ADMIN_GROUP_ID or user_id not in AUTHORIZED_USER_IDS:
         return
 
@@ -30,7 +29,6 @@ async def handle_announcement(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not message:
         return
 
-    # نشر الرسالة إلى كل المجموعات المستهدفة
     for group_id in TARGET_GROUP_IDS:
         try:
             await context.bot.copy_message(
@@ -38,6 +36,7 @@ async def handle_announcement(update: Update, context: ContextTypes.DEFAULT_TYPE
                 from_chat_id=chat_id,
                 message_id=message.message_id
             )
+            logging.info(f"تم بنجاح النشر إلى المجموعة: {group_id}")
         except Exception as e:
             logging.error(f"فشل النشر إلى المجموعة {group_id}: {e}")
 
@@ -45,14 +44,16 @@ def run_bot():
     if not TOKEN:
         print("خطأ: لم يتم العثور على BOT_TOKEN!")
         return
-    app = ApplicationBuilder().token(TOKEN).build()
     
-    # استقبال الرسائل داخل المجموعات
-    app.add_handler(MessageHandler(filters.ChatType.SUPERGROUP & filters.ALL, handle_announcement))
+    # بناء تطبيق البوت
+    application = ApplicationBuilder().token(TOKEN).build()
+    application.add_handler(MessageHandler(filters.ChatType.SUPERGROUP & filters.ALL, handle_announcement))
     
-    print("البوت يعمل الآن...")
-    app.run_polling()
+    print("البوت بدأ الاستماع للرسائل...")
+    # تشغيل البوت بطريقة تضمن عدم توقف السيرفر
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
+# إعداد سيرفر الويب الوهمي ليبقى مجانياً على Render
 app = Flask(__name__)
 
 @app.route('/')
@@ -64,7 +65,11 @@ def run_server():
     app.run(host='0.0.0.0', port=port)
 
 if __name__ == '__main__':
-    threading.Thread(target=run_bot, daemon=True).start()
+    # تشغيل البوت في مسار (Thread) مستقل
+    bot_thread = threading.Thread(target=run_bot)
+    bot_thread.daemon = True
+    bot_thread.start()
+    
+    # تشغيل سيرفر الويب الرئيسي
     run_server()
-
  
