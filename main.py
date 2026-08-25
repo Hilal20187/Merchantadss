@@ -7,7 +7,7 @@ import threading
 
 TOKEN = os.getenv("BOT_TOKEN")
 
-# معرفات الأصدقاء المصرح لهم
+# معرفات الأشخاص المسموح لهم فقط بنشر الإعلانات (أنت وصديقك)
 AUTHORIZED_USER_IDS = [822007358, 2065539959]
 
 # معرف القناة أو مجموعة الإدارة الخاصة بكم
@@ -19,9 +19,15 @@ TARGET_GROUP_IDS = [-1003952714985, -1002470205630, -1004407774851]
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 async def handle_announcement(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # دعم الرسائل القادمة من القنوات أو المجموعات
     chat = update.effective_chat
     if not chat or chat.id != ADMIN_GROUP_ID:
+        return
+
+    # التحقق من الشخص المرسل إذا كان مسموحاً له
+    user = update.effective_user
+    # إذا كانت الرسالة من القناة مباشرة أو من شخص مصرح له
+    if user and user.id not in AUTHORIZED_USER_IDS:
+        # إذا أرسل شخص غير مرغوب فيه شيئاً، نتجاهله تماماً
         return
 
     message = update.effective_message
@@ -55,10 +61,9 @@ def run_bot():
     
     application = ApplicationBuilder().token(TOKEN).build()
     
-    # السماح باستقبال الرسائل من المجموعات والقنوات
     application.add_handler(MessageHandler(filters.ChatType.GROUPS | filters.ChatType.CHANNEL & filters.ALL, handle_announcement))
     
-    print("البوت يعمل الآن ويتعرّف على القنوات...")
+    print("البوت يعمل بأمان ويتحقق من صلاحيات النشر...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 app = Flask(__name__)
