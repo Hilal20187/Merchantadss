@@ -2,28 +2,24 @@ import os
 import logging
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
+from flask import Flask
+import threading
 
-# قراءة الـ Token أماناً من متغيرات البيئة في المنصة
+# --- إعدادات البوت ---
 TOKEN = os.getenv("BOT_TOKEN")
-
-# ضع هنا معرفات الحسابات المسموح لها بالتنفيذ (أنت وأصدقاؤك)
-AUTHORIZED_USER_IDS = [123456789, 987654321]  # استبدل هذه الأرقام بمعرفاتكم الحقيقية
-
-# ضع هنا معرفات المجموعات التي تريد النشر فيها (Chat IDs)
-TARGET_GROUP_IDS = [-1001234567890, -1009876543210]  # استبدل هذه الأرقام بمعرفات مجموعاتكم
+AUTHORIZED_USER_IDS = [123456789, 987654321] # استبدل بمعرفاتكم
+TARGET_GROUP_IDS = [-1001234567890, -1009876543210] # استبدل بمعرفات المجموعات
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
+# --- دالة معالجة الرسائل (البوت) ---
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    
     if user_id not in AUTHORIZED_USER_IDS:
         return
-
     message = update.message
     if not message:
         return
-
     for group_id in TARGET_GROUP_IDS:
         try:
             await context.bot.copy_message(
@@ -34,16 +30,30 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logging.error(f"فشل الإرسال إلى المجموعة {group_id}: {e}")
 
-def main():
+def run_bot():
     if not TOKEN:
-        print("خطأ: لم يتم العثور على BOT_TOKEN في متغيرات البيئة!")
+        print("خطأ: لم يتم العثور على BOT_TOKEN!")
         return
-
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(MessageHandler(filters.ChatType.PRIVATE & filters.ALL, handle_message))
-
-    print("البوت يعمل الآن على السحابة بنجاح...")
+    print("البوت يعمل الآن...")
     app.run_polling()
 
+# --- إعداد السيرفر الوهمي (Web Service) لجعله مجانياً على Render ---
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "البوت يعمل بنجاح!"
+
+def run_server():
+    # Render يعطي البورت عبر متغير PORT، وإلا نستخدم 8080
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port)
+
 if __name__ == '__main__':
-    main()
+    # تشغيل البوت في خيط (Thread) منفصل
+    threading.Thread(target=run_bot, daemon=True).start()
+    # تشغيل السيرفر الوهمي
+    run_server()
+ 
