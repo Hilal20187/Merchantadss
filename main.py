@@ -29,31 +29,40 @@ async def handle_announcement(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not message:
         return
 
+    # استخراج نص الرسالة أو الكابشن إذا كانت صورة
+    text_to_send = message.text or message.caption
+    photo = message.photo
+
     for group_id in TARGET_GROUP_IDS:
         try:
-            await context.bot.copy_message(
-                chat_id=group_id,
-                from_chat_id=chat_id,
-                message_id=message.message_id
-            )
-            logging.info(f"تم بنجاح النشر إلى المجموعة: {group_id}")
+            if photo:
+                # إذا كانت الرسالة صورة مع إعلان
+                await context.bot.send_photo(
+                    chat_id=group_id,
+                    photo=photo[-1].file_id,
+                    caption=text_to_send or ""
+                )
+            elif text_to_send:
+                # إذا كانت رسالة نصية عادية
+                await context.bot.send_message(
+                    chat_id=group_id,
+                    text=text_to_send
+                )
+            logging.info(f"تم بنجاح نشر الإعلان في المجموعة: {group_id}")
         except Exception as e:
             logging.error(f"فشل النشر إلى المجموعة {group_id}: {e}")
 
 def run_bot():
     if not TOKEN:
-        print("خطأ: لم يتم العثور على BOT_TOKEN!")
+        print("خطأ: لم يتم العثور علي BOT_TOKEN!")
         return
     
-    # بناء تطبيق البوت
     application = ApplicationBuilder().token(TOKEN).build()
     application.add_handler(MessageHandler(filters.ChatType.SUPERGROUP & filters.ALL, handle_announcement))
     
-    print("البوت بدأ الاستماع للرسائل...")
-    # تشغيل البوت بطريقة تضمن عدم توقف السيرفر
+    print("البوت يعمل وجاهز للنشر...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
-# إعداد سيرفر الويب الوهمي ليبقى مجانياً على Render
 app = Flask(__name__)
 
 @app.route('/')
@@ -65,11 +74,10 @@ def run_server():
     app.run(host='0.0.0.0', port=port)
 
 if __name__ == '__main__':
-    # تشغيل البوت في مسار (Thread) مستقل
     bot_thread = threading.Thread(target=run_bot)
+    bot_thread.daemon = type('daemon', (), {})()
     bot_thread.daemon = True
     bot_thread.start()
     
-    # تشغيل سيرفر الويب الرئيسي
     run_server()
  
