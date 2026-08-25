@@ -7,10 +7,10 @@ import threading
 
 TOKEN = os.getenv("BOT_TOKEN")
 
-# معرفات الأشخاص المسموح لهم فقط بنشر الإعلانات (أنت وصديقك)
+# معرفات الأشخاص المسموح لهم فقط بالنشر (أنت وصديقك)
 AUTHORIZED_USER_IDS = [822007358, 2065539959]
 
-# معرف القناة أو مجموعة الإدارة الخاصة بكم
+# معرف مجموعة الإدارة الخاصة بكم (كمجموعة Supergroup)
 ADMIN_GROUP_ID = -1003963584914
 
 # المجموعات المستهدفة للنشر
@@ -23,11 +23,9 @@ async def handle_announcement(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not chat or chat.id != ADMIN_GROUP_ID:
         return
 
-    # التحقق من الشخص المرسل إذا كان مسموحاً له
+    # التحقق من المرسل (يجب أن يكون أحد الأشخاص المصرح لهم حصرياً)
     user = update.effective_user
-    # إذا كانت الرسالة من القناة مباشرة أو من شخص مصرح له
-    if user and user.id not in AUTHORIZED_USER_IDS:
-        # إذا أرسل شخص غير مرغوب فيه شيئاً، نتجاهله تماماً
+    if not user or user.id not in AUTHORIZED_USER_IDS:
         return
 
     message = update.effective_message
@@ -61,9 +59,10 @@ def run_bot():
     
     application = ApplicationBuilder().token(TOKEN).build()
     
-    application.add_handler(MessageHandler(filters.ChatType.GROUPS | filters.ChatType.CHANNEL & filters.ALL, handle_announcement))
+    # الاستماع لرسائل المجموعات فقط لضمان دقة معرفات المستخدمين
+    application.add_handler(MessageHandler(filters.ChatType.SUPERGROUP & filters.ALL, handle_announcement))
     
-    print("البوت يعمل بأمان ويتحقق من صلاحيات النشر...")
+    print("البوت يعمل ويتحقق من صلاحياتك بدقة داخل المجموعة...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 app = Flask(__name__)
@@ -82,4 +81,3 @@ if __name__ == '__main__':
     bot_thread.start()
     
     run_server()
- 
