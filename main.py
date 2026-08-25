@@ -10,7 +10,7 @@ TOKEN = os.getenv("BOT_TOKEN")
 # معرفات الأشخاص المسموح لهم فقط بنشر الإعلانات (أنت وصديقك)
 AUTHORIZED_USER_IDS = [822007358, 2065539959]
 
-# معرف مجموعة الإدارة الخاصة بكم
+# معرف مجموعة الإدارة الخاص بك
 ADMIN_GROUP_ID = -1003963584914
 
 # المجموعات المستهدفة للنشر
@@ -23,7 +23,7 @@ async def handle_announcement(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not chat or chat.id != ADMIN_GROUP_ID:
         return
 
-    # التحقق من المرسل (يجب أن يكون أحد الأشخاص المصرح لهم)
+    # التحقق من أن المرسل شخص مصرح له حصرياً
     user = update.effective_user
     if not user or user.id not in AUTHORIZED_USER_IDS:
         return
@@ -35,6 +35,7 @@ async def handle_announcement(update: Update, context: ContextTypes.DEFAULT_TYPE
     text_to_send = message.text or message.caption
     photo = message.photo
 
+    # إعادة إعادة إرسال الرسالة إلى كل المجموعات المستهدفة
     for group_id in TARGET_GROUP_IDS:
         try:
             if photo:
@@ -59,9 +60,10 @@ def run_bot():
     
     application = ApplicationBuilder().token(TOKEN).build()
     
-    application.add_handler(MessageHandler(filters.ChatType.SUPERGROUP & filters.ALL, handle_announcement))
+    # التقاط جميع الرسائل بلا استثناء داخل شات الإدارة
+    application.add_handler(MessageHandler(filters.ALL, handle_announcement))
     
-    print("البوت يعمل ويتحقق من صلاحياتك بدقة...")
+    print("البوت يعمل ويتلتقط كافة الرسائل الآن...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 app = Flask(__name__)
