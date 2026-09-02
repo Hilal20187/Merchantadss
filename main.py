@@ -1,13 +1,15 @@
 import os
 import logging
-from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
+from telethon import TelegramClient, events
 from flask import Flask
 import threading
 
-TOKEN = os.getenv("BOT_TOKEN")
+# قراءة المتغيرات الأساسية (يمكنك تعديلها هنا مباشرة أو تركها تسحب من البيئة)
+API_ID = int(os.getenv("API_ID", "0"))  # ضع api_id الخاص بك هنا إذا لم تستعمل البيئة
+API_HASH = os.getenv("API_HASH", "")    # ضع api_hash الخاص بك هنا
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-# معرفات الأشخاص المسموح لهم فقط بنشر الإعلانات (أنت وصديقك)
+# معرفات الأشخاص المسموح لهم فقط بنشر الإعلانات أو التحكم
 AUTHORIZED_USER_IDS = [822007358, 2065539959]
 
 # معرف مجموعة الإدارة الخاص بك
@@ -18,53 +20,52 @@ TARGET_GROUP_IDS = [-1003952714985, -1002470205630, -1004407774851]
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-async def handle_announcement(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat = update.effective_chat
-    if not chat or chat.id != ADMIN_GROUP_ID:
+# تهيئة عميل تيليتون للبوت
+client = TelegramClient('bot', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+
+@client.on(events.NewMessage)
+async def handle_announcement(event):
+    chat = await event.get_chat()
+    sender = await event.get_sender()
+    
+    if not sender or sender.id not in AUTHORIZED_USER_IDS:
         return
 
-    # التحقق من أن المرسل شخص مصرح له حصرياً
-    user = update.effective_user
-    if not user or user.id not in AUTHORIZED_USER_IDS:
+    text = event.raw_text or ""
+
+    # 1. معالجة أمر الحذف /del (سواء كتب وحده أو متبوعاً بمعرف البوت)
+    if text.strip().startswith('/del'):
+        try:
+            # حذف الرسالة التي تم الرد عليها (Reply) إن وجدت
+            if event.is_reply:
+                reply_msg = await event.get_reply_message()
+                await reply_msg.delete()
+            
+            # حذف أمر /del نفسه
+            await event.delete()
+            logging.info("تم تنفيذ أمر الحذف بنجاح عبر Telethon.")
+        except Exception as e:
+            logging.error(f"فشل تنفيذ أمر الحذف: {e}")
         return
 
-    message = update.effective_message
-    if not message:
+    # 2. منطق نشر الإعلانات (يقتصر حصرياً على مجموعة الإدارة)
+    if chat.id != ADMIN_GROUP_ID:
         return
 
-    text_to_send = message.text or message.caption
-    photo = message.photo
-
-    # إعادة إعادة إرسال الرسالة إلى كل المجموعات المستهدفة
+    # إعادة إرسال الرسالة (سواء نص أو صورة) إلى كل المجموعات المستهدفة
     for group_id in TARGET_GROUP_IDS:
         try:
-            if photo:
-                await context.bot.send_photo(
-                    chat_id=group_id,
-                    photo=photo[-1].file_id,
-                    caption=text_to_send or ""
-                )
-            elif text_to_send:
-                await context.bot.send_message(
-                    chat_id=group_id,
-                    text=text_to_send
-                )
+            await client.send_message(group_id, event.message)
             logging.info(f"تم بنجاح نشر الإعلان في المجموعة: {group_id}")
         except Exception as e:
             logging.error(f"فشل النشر إلى المجموعة {group_id}: {e}")
 
 def run_bot():
-    if not TOKEN:
+    if not BOT_TOKEN:
         print("خطأ: لم يتم العثور على BOT_TOKEN!")
         return
-    
-    application = ApplicationBuilder().token(TOKEN).build()
-    
-    # التقاط جميع الرسائل بلا استثناء داخل شات الإدارة
-    application.add_handler(MessageHandler(filters.ALL, handle_announcement))
-    
-    print("البوت يعمل ويتلتقط كافة الرسائل الآن...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    print("البوت يعمل ويتلتقط كافة الرسائل والأوامر عبر Telethon...")
+    client.run_until_disconnected()
 
 app = Flask(__name__)
 
@@ -82,4 +83,3 @@ if __name__ == '__main__':
     bot_thread.start()
     
     run_server()
- 
